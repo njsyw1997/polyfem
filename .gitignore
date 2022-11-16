@@ -54,6 +54,7 @@ __pycache__
 .vscode/
 .idea/
 build/
+debug/
 cmake-build-*/
 bin*
 bin_rel*

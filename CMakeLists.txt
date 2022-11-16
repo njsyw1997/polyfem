@@ -60,6 +60,8 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ################################################################################
+set(FETCHCONTENT_SOURCE_DIR_AMGCL "/home/yiwei/amgcl" CACHE PATH "When not empty, overrides where to find pre-populated content for amgcl")
+set(FETCHCONTENT_SOURCE_DIR_POLYSOLVE "/home/yiwei/polysolve" CACHE PATH "When not empty, overrides where to find pre-populated content for polysolve")
 
 # Polyfem options
 set(POLYFEM_SMALL_N  80 CACHE STRING "Maximum length for stack-allocated vectors (gradient + Hessian).")
