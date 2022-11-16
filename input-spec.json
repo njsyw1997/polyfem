@@ -1603,8 +1603,7 @@
             "class",
             "max_levels",
             "direct_coarse",
-            "ncycle",
-            "coarsening"
+            "ncycle"
         ],
         "doc": "Preconditioner settings for the AMGCL."
     },
@@ -1665,18 +1664,6 @@
         "doc": "Number of cycles."
     },
     {
-        "pointer": "/solver/linear/AMGCL/precond/coarsening",
-        "default": null,
-        "type": "object",
-        "optional": [
-            "type",
-            "estimate_spectral_radius",
-            "relax",
-            "aggr"
-        ],
-        "doc": "Coarsening parameters."
-    },
-    {
         "pointer": "/solver/linear/AMGCL/precond/relax/degree",
         "default": 16,
         "type": "int",
@@ -1711,39 +1698,6 @@
         "default": true,
         "type": "bool",
         "doc": "Scale."
-    },
-    {
-        "pointer": "/solver/linear/AMGCL/precond/coarsening/type",
-        "default": "smoothed_aggregation",
-        "type": "string",
-        "doc": "Coarsening type."
-    },
-    {
-        "pointer": "/solver/linear/AMGCL/precond/coarsening/estimate_spectral_radius",
-        "default": true,
-        "type": "bool",
-        "doc": "Should the spectral radius be estimated."
-    },
-    {
-        "pointer": "/solver/linear/AMGCL/precond/coarsening/relax",
-        "default": 1,
-        "type": "float",
-        "doc": "Coarsening relaxation."
-    },
-    {
-        "pointer": "/solver/linear/AMGCL/precond/coarsening/aggr",
-        "default": null,
-        "type": "object",
-        "optional": [
-            "eps_strong"
-        ],
-        "doc": "Aggregation settings."
-    },
-    {
-        "pointer": "/solver/linear/AMGCL/precond/coarsening/aggr/eps_strong",
-        "default": 0,
-        "type": "float",
-        "doc": "Aggregation epsilon strong."
     },
     {
         "pointer": "/solver/nonlinear",

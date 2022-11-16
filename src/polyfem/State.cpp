@@ -1209,8 +1209,7 @@ namespace polyfem
 		const assembler::AssemblyValsCache &ass_vals_cache) const
 	{
 		json rhs_solver_params = args["solver"]["linear"];
-		if (!rhs_solver_params.contains("Pardiso"))
-			rhs_solver_params["Pardiso"] = {};
+		rhs_solver_params["solver"]="Eigen::PardisoLDLT";
 		rhs_solver_params["Pardiso"]["mtype"] = -2; // matrix type for Pardiso (2 = SPD)
 
 		const int size = problem->is_scalar() ? 1 : mesh->dimension();
@@ -1220,7 +1219,7 @@ namespace polyfem
 			dirichlet_nodes, neumann_nodes,
 			dirichlet_nodes_position, neumann_nodes_position,
 			n_bases, size, bases, geom_bases(), ass_vals_cache, formulation(), *problem,
-			args["space"]["advanced"]["bc_method"], args["solver"]["linear"]["solver"], args["solver"]["linear"]["precond"], rhs_solver_params);
+			args["space"]["advanced"]["bc_method"], rhs_solver_params["solver"], rhs_solver_params["precond"], rhs_solver_params);
 	}
 
 	void State::assemble_rhs()
