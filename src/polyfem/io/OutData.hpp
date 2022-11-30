@@ -80,6 +80,7 @@ namespace polyfem::io
 		/// @param[out] boundary_nodes_pos nodes positions
 		/// @param[out] boundary_edges edges
 		/// @param[out] boundary_triangles triangles
+		/// @param[out] displacement_map map of collision mesh vertices to nodes, empty if identity
 		static void extract_boundary_mesh(
 			const mesh::Mesh &mesh,
 			const int n_bases,
@@ -87,7 +88,8 @@ namespace polyfem::io
 			const std::vector<mesh::LocalBoundary> &total_local_boundary,
 			Eigen::MatrixXd &boundary_nodes_pos,
 			Eigen::MatrixXi &boundary_edges,
-			Eigen::MatrixXi &boundary_triangles);
+			Eigen::MatrixXi &boundary_triangles,
+			Eigen::SparseMatrix<double> &displacement_map);
 
 		/// @brief unitalize the ref element sampler
 		/// @param[in] mesh mesh
@@ -171,6 +173,7 @@ namespace polyfem::io
 		/// @param[in] state state to get the data
 		/// @param[in] sol solution
 		/// @param[in] pressure pressure
+		/// @param[in] t time
 		/// @param[in] dt_in delta_t
 		/// @param[in] opts export options
 		/// @param[in] is_contact_enabled if contact is enabled
@@ -179,6 +182,7 @@ namespace polyfem::io
 						  const State &state,
 						  const Eigen::MatrixXd &sol,
 						  const Eigen::MatrixXd &pressure,
+						  const double t,
 						  const double dt_in,
 						  const ExportOptions &opts,
 						  const bool is_contact_enabled,
