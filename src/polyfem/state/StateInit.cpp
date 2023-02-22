@@ -38,7 +38,14 @@ namespace spdlog::level
 		 {spdlog::level::level_enum::warn, "warning"},
 		 {spdlog::level::level_enum::err, "error"},
 		 {spdlog::level::level_enum::critical, "critical"},
-		 {spdlog::level::level_enum::off, "off"}})
+		 {spdlog::level::level_enum::off, "off"},
+		 {spdlog::level::level_enum::trace, 0},
+		 {spdlog::level::level_enum::debug, 1},
+		 {spdlog::level::level_enum::info, 2},
+		 {spdlog::level::level_enum::warn, 3},
+		 {spdlog::level::level_enum::err, 3},
+		 {spdlog::level::level_enum::critical, 4},
+		 {spdlog::level::level_enum::off, 5}})
 }
 
 namespace polyfem
@@ -211,6 +218,14 @@ namespace polyfem
 			}
 		}
 
+		// Save output directory and resolve output paths dynamically
+		const std::string output_dir = resolve_input_path(this->args["output"]["directory"]);
+		if (!output_dir.empty())
+		{
+			std::filesystem::create_directories(output_dir);
+		}
+		this->output_dir = output_dir;
+
 		std::string out_path_log = this->args["output"]["log"]["path"];
 		if (!out_path_log.empty())
 		{
@@ -219,6 +234,8 @@ namespace polyfem
 
 		spdlog::level::level_enum log_level = this->args["output"]["log"]["level"];
 		init_logger(out_path_log, log_level, this->args["output"]["log"]["quiet"]);
+
+		logger().info("Saving output to {}", output_dir);
 
 		const unsigned int thread_in = this->args["solver"]["max_threads"];
 		set_max_threads(thread_in <= 0 ? std::numeric_limits<unsigned int>::max() : thread_in);
@@ -287,14 +304,6 @@ namespace polyfem
 			// important for the BC
 			problem->set_parameters(args["preset_problem"]);
 		}
-
-		// Save output directory and resolve output paths dynamically
-		const std::string output_dir = this->args["output"]["directory"];
-		if (!output_dir.empty())
-		{
-			std::filesystem::create_directories(output_dir);
-		}
-		this->output_dir = output_dir;
 	}
 
 	void State::set_max_threads(const unsigned int max_threads)

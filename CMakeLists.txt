@@ -28,11 +28,12 @@ endif()
 # CMake Policies
 ################################################################################
 
-# cmake_policy(VERSION 3.24)
-# cmake_policy(SET CMP0135 NEW) # https://cmake.org/cmake/help/latest/policy/CMP0135.html
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    cmake_policy(SET CMP0135 NEW) # https://cmake.org/cmake/help/latest/policy/CMP0135.html
+endif()
 
 ################################################################################
-project(PolyFEM DESCRIPTION "A polyvalent C++ FEM library")
+project(PolyFEM DESCRIPTION "A polyvalent C++ FEM library" LANGUAGES C CXX)
 ################################################################################
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -77,25 +78,7 @@ set_property(CACHE POLYFEM_THREADING PROPERTY STRINGS "CPP" "TBB" "NONE")
 option(POLYFEM_WITH_REMESHING "Uses VMTK for remeshing"                     OFF)
 option(POLYFEM_WITH_TESTS     "Build tests"                                 ON)
 option(POLYFEM_WITH_CLIPPER   "Use clipper, necessary for polygonal bases"  ON)
-
-#Solver
-option(POLYSOLVE_WITH_CHOLMOD          "Enable Cholmod library"            ON)
-option(POLYSOLVE_WITH_UMFPACK          "Enable UmfPack library"            ON)
-option(POLYSOLVE_WITH_SUPERLU          "Enable SuperLU library"            ON)
-option(POLYSOLVE_WITH_MKL              "Enable MKL library"                ON)
-option(POLYSOLVE_WITH_PARDISO          "Enable Pardiso library"            OFF)
-option(POLYSOLVE_WITH_HYPRE            "Enable hypre"                      ON)
-option(POLYSOLVE_WITH_AMGCL            "Use AMGCL"                         ON)
-option(POLYSOLVE_WITH_SPECTRA          "Enable computing spectrum"         OFF)
-option(POLYSOLVE_LARGE_INDEX           "Build for large indices"           OFF)
-
-if(CMAKE_OSX_ARCHITECTURES STREQUAL arm64)
-    set(POLYSOLVE_WITH_CHOLMOD    OFF CACHE BOOL "Enable Cholmod library"  FORCE)
-    set(POLYSOLVE_WITH_UMFPACK    OFF CACHE BOOL "Enable UmfPack library"  FORCE)
-    set(POLYSOLVE_WITH_SUPERLU    OFF CACHE BOOL "Enable SuperLU library"  FORCE)
-    set(POLYSOLVE_WITH_MKL        OFF CACHE BOOL "Enable MKL library"      FORCE)
-endif()
-
+option(POLYFEM_WITH_MMG       "Build MMG utils for remeshing"               OFF)
 
 # Options for libigl modules
 option(LIBIGL_USE_STATIC_LIBRARY          "Use libigl as static library" OFF)
@@ -133,6 +116,32 @@ include(sanitizers)
 # add_library() can only be called without any source since CMake 3.11 ...
 add_library(polyfem)
 add_library(polyfem::polyfem ALIAS polyfem)
+
+################################################################################
+# CUDA
+################################################################################
+
+if(IPC_TOOLKIT_WITH_CUDA OR POLYSOLVE_WITH_CUSOLVER)
+  include(CheckLanguage)
+  check_language(CUDA)
+  if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+  else()
+    message(FATAL_ERROR "No CUDA support found!")
+  endif()
+
+  set_target_properties(polyfem PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
+  # Nvidia RTX8000 -> compute_75
+  # Nvidia V100 -> compute_70
+  # Nvidia 1080/1080Ti -> compute_61
+  # Nvidia 3080Ti -> compute_86
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 70 75 86)
+  endif()
+  set_target_properties(polyfem PROPERTIES CUDA_ARCHITECTURES "70;75;86")
+#   set_target_properties(PolyFEM_bin PROPERTIES CUDA_ARCHITECTURES "70;75;86")
+endif()
 
 # Must be call in the same "CMakeLists.txt" where add_library(polyfem ...) is called
 polyfem_autogen(polyfem eigs.py auto_eigs)
@@ -193,6 +202,11 @@ endif()
 include(libigl)
 target_link_libraries(polyfem PUBLIC igl::core)
 
+if(LIBIGL_WITH_TRIANGLE)
+    target_link_libraries(polyfem PUBLIC igl::triangle)
+    target_compile_definitions(polyfem PUBLIC -DPOLYFEM_WITH_TRIANGLE)
+endif()
+
 # BVH
 include(BVH)
 target_link_libraries(polyfem PUBLIC BVH_lib)
@@ -205,7 +219,7 @@ target_link_libraries(polyfem PUBLIC mshio)
 include(geogram)
 target_link_libraries(polyfem PUBLIC geogram)
 
-#spdlog
+# spdlog
 include(spdlog)
 target_link_libraries(polyfem PUBLIC spdlog::spdlog)
 
@@ -225,18 +239,9 @@ target_link_libraries(polyfem PUBLIC tinyexpr::tinyexpr)
 include(tinyxml)
 target_link_libraries(polyfem PUBLIC tinyxml2)
 
-
-# jse library
+# JSON Specification Engine library
 include(jse)
 target_link_libraries(polyfem PUBLIC jse::jse)
-
-
-if(POLYFEM_WITH_REMESHING)
-    # wmtk library
-    include(wmtk)
-    target_link_libraries(polyfem PUBLIC wmtk::toolkit)
-    target_compile_definitions(polyfem PUBLIC -DPOLYFEM_WITH_REMESHING)
-endif()
 
 # HighFive + HDF5 library
 include(hdf5)
@@ -253,47 +258,32 @@ target_link_libraries(polyfem PUBLIC natsort::natsort)
 include(glob)
 target_link_libraries(polyfem PUBLIC Glob::Glob)
 
-# Extra warnings (include this at the end to have highest priority)
-target_link_libraries(polyfem PRIVATE polyfem::warnings)
-
 ################################################################################
 # Optional libraries
 ################################################################################
 
 # # MMG wrapper
-# if(POLYFEM_WITH_MMG)
-#     include(ExternalProject)
-#     set(MMG_DIR "${POLYFEM_DATA_DIR}/mmg")
-#     ExternalProject_Add(MMG_Project
-#         PREFIX "${MMG_DIR}"
-#         GIT_REPOSITORY https://github.com/MmgTools/mmg.git
-#         GIT_TAG "v5.3.8"
+if(POLYFEM_WITH_MMG)
+    include(mmg)
+    target_link_libraries(polyfem PUBLIC mmg::mmg)
+    target_compile_definitions(polyfem PUBLIC -DPOLYFEM_WITH_MMG)
+endif()
 
-#         UPDATE_COMMAND ""
-#         PATCH_COMMAND ""
-
-#         CMAKE_ARGS
-#             -DCMAKE_PREFIX_PATH=${MMG_DIR}/bin
-#             -DBUILD_SHARED_LIBS=OFF
-#             "-DCMAKE_INSTALL_PREFIX=${MMG_DIR}/"
-
-#         TEST_COMMAND "")
-
-#     set(MMG_PATH "${POLYFEM_DATA_DIR}/mmg/bin/mmg3d_O3")
-#     target_compile_definitions(polyfem PUBLIC -DPOLYFEM_MMG_PATH=\"${MMG_PATH}\")
-#     target_compile_definitions(polyfem PUBLIC -DPOLYFEM_WITH_MMG)
-
-#     # Boost
-#     find_package(Boost 1.61 QUIET REQUIRED COMPONENTS filesystem system)
-#     target_include_directories(polyfem PUBLIC ${Boost_INCLUDE_DIRS})
-#     target_link_libraries(polyfem PUBLIC ${Boost_LIBRARIES})
-# endif()
+if(POLYFEM_WITH_REMESHING)
+    # wmtk library
+    include(wmtk)
+    target_link_libraries(polyfem PUBLIC wmtk::toolkit)
+    target_compile_definitions(polyfem PUBLIC -DPOLYFEM_WITH_REMESHING)
+endif()
 
 if(POLYFEM_WITH_CLIPPER)
     include(clipper)
     target_link_libraries(polyfem PUBLIC clipper::clipper)
     target_compile_definitions(polyfem PUBLIC -DPOLYFEM_WITH_CLIPPER)
 endif()
+
+# Extra warnings (link this here so it has top priority)
+target_link_libraries(polyfem PRIVATE polyfem::warnings)
 
 ################################################################################
 # Polyfem binary
@@ -346,30 +336,4 @@ if(POLYFEM_TOPLEVEL_PROJECT)
         enable_testing()
         add_subdirectory(tests)
     endif()
-endif()
-
-################################################################################
-# CUDA
-################################################################################
-
-if(IPC_TOOLKIT_WITH_CUDA)
-  include(CheckLanguage)
-  check_language(CUDA)
-  if(CMAKE_CUDA_COMPILER)
-    enable_language(CUDA)
-  else()
-    message(FATAL_ERROR "No CUDA support found!")
-  endif()
-
-  set_target_properties(polyfem PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-
-  # Nvidia RTX8000 -> compute_75
-  # Nvidia V100 -> compute_70
-  # Nvidia 1080/1080Ti -> compute_61
-  # Nvidia 3080Ti -> compute_86
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES 70 75 86)
-  endif()
-  set_target_properties(polyfem PROPERTIES CUDA_ARCHITECTURES "70;75;86")
-  set_target_properties(PolyFEM_bin PROPERTIES CUDA_ARCHITECTURES "70;75;86")
 endif()

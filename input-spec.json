@@ -34,7 +34,7 @@
         "pointer": "/root_path",
         "default": "",
         "type": "string",
-        "doc": "Path for all relative paths, set automatically to the folder containing this json."
+        "doc": "Path for all relative paths, set automatically to the folder containing this JSON."
     },
     {
         "pointer": "/tests",
@@ -356,6 +356,22 @@
         "type": "object",
         "required": [
             "id",
+            "radius",
+            "p1",
+            "p2"
+        ],
+        "optional": [
+            "relative"
+        ],
+        "default": null,
+        "#type_name": "cylinder",
+        "doc": "Assign the ID to all volume elements with barycenters inside a cylinder with specified axis (p1, p2) and radius.  If relative option is set to true, the coordinates of the  center are specified in bilinear/trilinear coordinates with respect to the bounding box of the geometry, and the radius is specified relative to the bounding box diagonal length."
+    },
+    {
+        "pointer": "/geometry/*/volume_selection/*",
+        "type": "object",
+        "required": [
+            "id",
             "point",
             "normal"
         ],
@@ -398,6 +414,26 @@
     },
     {
         "pointer": "/geometry/*/volume_selection/*/center/*",
+        "type": "float"
+    },
+    {
+        "pointer": "/geometry/*/volume_selection/*/p1",
+        "type": "list",
+        "min": 2,
+        "max": 3
+    },
+    {
+        "pointer": "/geometry/*/volume_selection/*/p1/*",
+        "type": "float"
+    },
+    {
+        "pointer": "/geometry/*/volume_selection/*/p2",
+        "type": "list",
+        "min": 2,
+        "max": 3
+    },
+    {
+        "pointer": "/geometry/*/volume_selection/*/p2/*",
         "type": "float"
     },
     {
@@ -512,6 +548,22 @@
         "type": "object",
         "required": [
             "id",
+            "radius",
+            "p1",
+            "p2"
+        ],
+        "optional": [
+            "relative"
+        ],
+        "default": null,
+        "#type_name": "cylinder",
+        "doc": "Assign the ID to all volume elements with barycenters inside a cylinder with specified axis (p1, p2) and radius.  If relative option is set to true, the coordinates of the  center are specified in bilinear/trilinear coordinates with respect to the bounding box of the geometry, and the radius is specified relative to the bounding box diagonal length."
+    },
+    {
+        "pointer": "/geometry/*/point_selection/*",
+        "type": "object",
+        "required": [
+            "id",
             "point",
             "normal"
         ],
@@ -567,6 +619,26 @@
     },
     {
         "pointer": "/geometry/*/point_selection/*/center/*",
+        "type": "float"
+    },
+    {
+        "pointer": "/geometry/*/point_selection/*/p1",
+        "type": "list",
+        "min": 2,
+        "max": 3
+    },
+    {
+        "pointer": "/geometry/*/point_selection/*/p1/*",
+        "type": "float"
+    },
+    {
+        "pointer": "/geometry/*/point_selection/*/p2",
+        "type": "list",
+        "min": 2,
+        "max": 3
+    },
+    {
+        "pointer": "/geometry/*/point_selection/*/p2/*",
         "type": "float"
     },
     {
@@ -698,6 +770,22 @@
         "type": "object",
         "required": [
             "id",
+            "radius",
+            "p1",
+            "p2"
+        ],
+        "optional": [
+            "relative"
+        ],
+        "default": null,
+        "#type_name": "cylinder",
+        "doc": "Assign the ID to all volume elements with barycenters inside a cylinder with specified axis (p1, p2) and radius.  If relative option is set to true, the coordinates of the  center are specified in bilinear/trilinear coordinates with respect to the bounding box of the geometry, and the radius is specified relative to the bounding box diagonal length."
+    },
+    {
+        "pointer": "/geometry/*/surface_selection/*",
+        "type": "object",
+        "required": [
+            "id",
             "point",
             "normal"
         ],
@@ -753,6 +841,26 @@
     },
     {
         "pointer": "/geometry/*/surface_selection/*/center/*",
+        "type": "float"
+    },
+    {
+        "pointer": "/geometry/*/surface_selection/*/p1",
+        "type": "list",
+        "min": 2,
+        "max": 3
+    },
+    {
+        "pointer": "/geometry/*/surface_selection/*/p1/*",
+        "type": "float"
+    },
+    {
+        "pointer": "/geometry/*/surface_selection/*/p2",
+        "type": "list",
+        "min": 2,
+        "max": 3
+    },
+    {
+        "pointer": "/geometry/*/surface_selection/*/p2/*",
         "type": "float"
     },
     {
@@ -1014,10 +1122,11 @@
         "default": "MFSHarmonic",
         "options": [
             "MFSHarmonic",
-            "MeanValue"
+            "MeanValue",
+            "Wachspress"
         ],
         "type": "string",
-        "doc": "Type of basis to use for a polygonal element, one of MFSHarmonic, MeanValue, see 'PolySpline..' paper for details."
+        "doc": "Type of basis to use for a polygonal element, one of MFSHarmonic, MeanValue, or Wachspress see 'PolySpline..' paper for details."
     },
     {
         "pointer": "/space/use_p_ref",
@@ -1274,7 +1383,8 @@
             "dhat",
             "dhat_percentage",
             "epsv",
-            "friction_coefficient"
+            "friction_coefficient",
+            "use_convergent_formulation"
         ],
         "doc": "Contact handling parameters."
     },
@@ -1309,6 +1419,12 @@
         "default": 0,
         "type": "float",
         "doc": "Coefficient of friction (global)"
+    },
+    {
+        "pointer": "/contact/use_convergent_formulation",
+        "default": false,
+        "type": "bool",
+        "doc": "Whether to use the convergent (area weighted) formulation of IPC."
     },
     {
         "pointer": "/solver",
@@ -1586,7 +1702,17 @@
         "pointer": "/solver/linear/Pardiso/mtype",
         "default": 11,
         "type": "int",
-        "options": [1, 2, -2, 3, 4, -4, 6, 11, 13],
+        "options": [
+            1,
+            2,
+            -2,
+            3,
+            4,
+            -4,
+            6,
+            11,
+            13
+        ],
         "doc": "Matrix type."
     },
     {
@@ -1730,12 +1856,13 @@
         "optional": [
             "solver",
             "f_delta",
+            "x_delta",
             "grad_norm",
             "first_grad_norm_tol",
             "max_iterations",
-            "use_grad_norm",
             "relative_gradient",
-            "line_search"
+            "line_search",
+            "force_psd_projection"
         ],
         "doc": "Settings for nonlinear solver. Interior-loop linear solver settings are defined in the solver/linear section."
     },
@@ -1753,12 +1880,21 @@
         "pointer": "/solver/nonlinear/f_delta",
         "default": 1e-10,
         "type": "float",
+        "min": 0,
         "doc": "Stopping criterion: minimal change of the energy f for the iterations to continue."
+    },
+    {
+        "pointer": "/solver/nonlinear/x_delta",
+        "default": 0,
+        "type": "float",
+        "min": 0,
+        "doc": "Stopping criterion: minimal change of the variables x for the iterations to continue. Computed as the L2 norm of x divide by the time step."
     },
     {
         "pointer": "/solver/nonlinear/grad_norm",
         "default": 1e-08,
         "type": "float",
+        "min": 0,
         "doc": "Stopping criterion: Minimal gradient norm for the iterations to continue."
     },
     {
@@ -1772,12 +1908,6 @@
         "default": 1000,
         "type": "int",
         "doc": "Maximum number of iterations for a nonlinear solve."
-    },
-    {
-        "pointer": "/solver/nonlinear/use_grad_norm",
-        "default": true,
-        "type": "bool",
-        "doc": "If true, enable gradient-norm stopping criterion, absolute (if relative_gradient is false), or relative to the initial gradient magnitude before the first iteration, otherwise."
     },
     {
         "pointer": "/solver/nonlinear/relative_gradient",
@@ -1813,6 +1943,12 @@
         "default": 0.0001,
         "type": "float",
         "doc": "When the energy is smaller than use_grad_norm_tol, line-search uses norm of gradient instead of energy"
+    },
+    {
+        "pointer": "/solver/nonlinear/force_psd_projection",
+        "default": false,
+        "type": "bool",
+        "doc": "Force the Hessian to be PSD when using second order solvers (i.e., Newton's method)."
     },
     {
         "pointer": "/solver/augmented_lagrangian",
@@ -2282,6 +2418,16 @@
         "pointer": "/materials/*/id",
         "type": "int",
         "default": 0,
+        "doc": "Volume selection ID"
+    },
+    {
+        "pointer": "/materials/*/id",
+        "type": "list",
+        "doc": "Volume selection IDs"
+    },
+    {
+        "pointer": "/materials/*/id/*",
+        "type": "int",
         "doc": "Volume selection ID"
     },
     {
@@ -2820,7 +2966,11 @@
     {
         "pointer": "/boundary_conditions/pressure_boundary/*/dimension",
         "type": "list",
-        "default": [true, true, true],
+        "default": [
+            true,
+            true,
+            true
+        ],
         "doc": "List of 2 (2D) or 3 (3D) boolean values indicating if the Pressure boundary condition is applied for a particular dimension."
     },
     {
@@ -3240,6 +3390,7 @@
             "directory",
             "log",
             "json",
+            "restart_json",
             "paraview",
             "data",
             "advanced",
@@ -3302,7 +3453,13 @@
         "pointer": "/output/json",
         "default": "",
         "type": "string",
-        "doc": "File name for json output statistics on time/error/etc."
+        "doc": "File name for JSON output statistics on time/error/etc."
+    },
+    {
+        "pointer": "/output/restart_json",
+        "default": "",
+        "type": "string",
+        "doc": "File name for JSON output to restart the simulation."
     },
     {
         "pointer": "/output/paraview",
@@ -3431,6 +3588,7 @@
             "u_path",
             "v_path",
             "a_path",
+            "rest_mesh",
             "mises",
             "nodes",
             "advanced"
@@ -3478,6 +3636,12 @@
         "default": "",
         "type": "string",
         "doc": "Writes the complete acceleration in PolyFEM format, used to restart the sim"
+    },
+    {
+        "pointer": "/output/data/rest_mesh",
+        "default": "",
+        "type": "string",
+        "doc": "Writes the rest mesh in OBJ format, used to restart the sim"
     },
     {
         "pointer": "/output/data/mises",
@@ -3552,6 +3716,7 @@
             "vis_boundary_only",
             "curved_mesh_size",
             "save_solve_sequence_debug",
+            "save_ccd_debug_meshes",
             "save_time_sequence",
             "save_nl_solve_sequence",
             "spectrum"
@@ -3580,7 +3745,7 @@
         "pointer": "/output/advanced/sol_at_node",
         "default": -1,
         "type": "int",
-        "doc": "Write out solution values at a specific node. the values will be written in the output json file"
+        "doc": "Write out solution values at a specific node. the values will be written in the output JSON file"
     },
     {
         "pointer": "/output/advanced/vis_boundary_only",
@@ -3601,6 +3766,12 @@
         "doc": "saves AL internal steps, for debugging"
     },
     {
+        "pointer": "/output/advanced/save_ccd_debug_meshes",
+        "default": false,
+        "type": "bool",
+        "doc": "saves AL internal steps, for debugging"
+    },
+    {
         "pointer": "/output/advanced/save_time_sequence",
         "default": true,
         "type": "bool",
@@ -3616,7 +3787,7 @@
         "pointer": "/output/advanced/spectrum",
         "default": false,
         "type": "bool",
-        "doc": "exports the spectrum of the matrix in the output json. Works only if POLYSOLVE_WITH_SPECTRA is enabled"
+        "doc": "exports the spectrum of the matrix in the output JSON. Works only if POLYSOLVE_WITH_SPECTRA is enabled"
     },
     {
         "pointer": "/input",
@@ -3634,27 +3805,34 @@
         "optional": [
             "u_path",
             "v_path",
-            "a_path"
+            "a_path",
+            "reorder"
         ],
         "doc": "input to restart time dependent sim"
     },
     {
         "pointer": "/input/data/u_path",
         "default": "",
-        "type": "string",
+        "type": "file",
         "doc": "input solution"
     },
     {
         "pointer": "/input/data/v_path",
         "default": "",
-        "type": "string",
+        "type": "file",
         "doc": "input velocity"
     },
     {
         "pointer": "/input/data/a_path",
         "default": "",
-        "type": "string",
+        "type": "file",
         "doc": "input acceleration"
+    },
+    {
+        "pointer": "/input/data/reorder",
+        "default": false,
+        "type": "bool",
+        "doc": "reorder input data"
     },
     {
         "pointer": "/preset_problem",
