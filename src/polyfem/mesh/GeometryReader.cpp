@@ -255,14 +255,7 @@ namespace polyfem::mesh
 		if (geometry.empty())
 			log_and_throw_error("Provided geometry is empty!");
 
-		std::vector<json> geometries;
-		// Note you can add more types here, just add them to geometries
-		if (geometry.is_object())
-			geometries.push_back(geometry);
-		else if (geometry.is_array())
-			geometries = geometry.get<std::vector<json>>();
-		else
-			log_and_throw_error("Invalid JSON geometry type!");
+		std::vector<json> geometries = utils::json_as_array(geometry);
 
 		// --------------------------------------------------------------------
 
@@ -380,6 +373,7 @@ namespace polyfem::mesh
 	Obstacle read_obstacle_geometry(
 		const json &geometry,
 		const std::vector<json> &displacements,
+		const std::vector<json> &dirichlets,
 		const std::string &root_path,
 		const int dim,
 		const std::vector<std::string> &_names,
@@ -414,16 +408,7 @@ namespace polyfem::mesh
 		if (geometry.empty())
 			return obstacle;
 
-		std::vector<json> geometries;
-		// Note you can add more types here, just add them to geometries
-		if (geometry.is_object())
-		{
-			geometries.push_back(geometry);
-		}
-		else if (geometry.is_array())
-		{
-			geometries = geometry.get<std::vector<json>>();
-		}
+		std::vector<json> geometries = utils::json_as_array(geometry);
 
 		for (const json &geometry : geometries)
 		{
@@ -451,6 +436,16 @@ namespace polyfem::mesh
 						log_and_throw_error("Invalid surface_selection for obstacle, needs to be an integer!");
 
 					const int id = geometry["surface_selection"];
+					for (const json &disp : dirichlets)
+					{
+						// TODO: Add support for array of ints
+						if ((disp["id"].is_string() && disp["id"].get<std::string>() == "all")
+							|| (disp["id"].is_number_integer() && disp["id"].get<int>() == id))
+						{
+							displacement = disp;
+							break;
+						}
+					}
 					for (const json &disp : displacements)
 					{
 						// TODO: Add support for array of ints

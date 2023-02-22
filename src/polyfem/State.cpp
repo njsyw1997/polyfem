@@ -18,7 +18,8 @@
 #include <polyfem/basis/SplineBasis2d.hpp>
 #include <polyfem/basis/SplineBasis3d.hpp>
 
-#include <polyfem/basis/MVPolygonalBasis2d.hpp>
+#include <polyfem/basis/barycentric/MVPolygonalBasis2d.hpp>
+#include <polyfem/basis/barycentric/WSPolygonalBasis2d.hpp>
 
 #include <polyfem/basis/PolygonalBasis2d.hpp>
 #include <polyfem/basis/PolygonalBasis3d.hpp>
@@ -32,7 +33,6 @@
 #include <polyfem/quadrature/TriQuadrature.hpp>
 
 #include <polyfem/utils/Logger.hpp>
-#include <polyfem/utils/JSONUtils.hpp>
 #include <polyfem/utils/Timer.hpp>
 
 #include <igl/Timer.h>
@@ -406,67 +406,6 @@ namespace polyfem
 		assert(sol.size() == n_bases * (problem->is_scalar() ? 1 : mesh->dimension()));
 		pressure = tmp.middleRows(tmp.rows() - n_pressure_bases - fluid_offset, n_pressure_bases);
 		assert(pressure.size() == n_pressure_bases);
-	}
-
-	void State::set_materials()
-	{
-		if (!is_param_valid(args, "materials"))
-			return;
-
-		const auto &body_params = args["materials"];
-
-		if (!body_params.is_array())
-		{
-			assembler.add_multimaterial(0, body_params);
-			return;
-		}
-
-		std::map<int, json> materials;
-		for (int i = 0; i < body_params.size(); ++i)
-		{
-			json mat = body_params[i];
-			json id = mat["id"];
-			if (id.is_array())
-			{
-				for (int j = 0; j < id.size(); ++j)
-					materials[id[j]] = mat;
-			}
-			else
-			{
-				const int mid = id;
-				materials[mid] = mat;
-			}
-		}
-
-		std::set<int> missing;
-
-		std::map<int, int> body_element_count;
-		std::vector<int> eid_to_eid_in_body(mesh->n_elements());
-		for (int e = 0; e < mesh->n_elements(); ++e)
-		{
-			const int bid = mesh->get_body_id(e);
-			body_element_count.try_emplace(bid, 0);
-			eid_to_eid_in_body[e] = body_element_count[bid]++;
-		}
-
-		for (int e = 0; e < mesh->n_elements(); ++e)
-		{
-			const int bid = mesh->get_body_id(e);
-			const auto it = materials.find(bid);
-			if (it == materials.end())
-			{
-				missing.insert(bid);
-				continue;
-			}
-
-			const json &tmp = it->second;
-			assembler.add_multimaterial(e, tmp);
-		}
-
-		for (int bid : missing)
-		{
-			logger().warn("Missing material parameters for body {}", bid);
-		}
 	}
 
 	void compute_integral_constraints(
@@ -927,15 +866,23 @@ namespace polyfem
 
 		if (is_contact_enabled())
 		{
-			if (!has_dhat && args["contact"]["dhat"] > stats.min_edge_length)
+			double min_boundary_edge_length = std::numeric_limits<double>::max();
+			for (const auto &edge : collision_mesh.edges().rowwise())
 			{
-				args["contact"]["dhat"] = double(args["contact"]["dhat_percentage"]) * stats.min_edge_length;
+				const VectorNd v0 = collision_mesh.vertices_at_rest().row(edge(0));
+				const VectorNd v1 = collision_mesh.vertices_at_rest().row(edge(1));
+				min_boundary_edge_length = std::min(min_boundary_edge_length, (v1 - v0).norm());
+			}
+
+			if (!has_dhat && args["contact"]["dhat"] > min_boundary_edge_length)
+			{
+				args["contact"]["dhat"] = double(args["contact"]["dhat_percentage"]) * min_boundary_edge_length;
 				logger().info("dhat set to {}", double(args["contact"]["dhat"]));
 			}
 			else
 			{
-				if (args["contact"]["dhat"] > stats.min_edge_length)
-					logger().warn("dhat larger than min edge, {} > {}", double(args["contact"]["dhat"]), stats.min_edge_length);
+				if (args["contact"]["dhat"] > min_boundary_edge_length)
+					logger().warn("dhat larger than min boundary edge, {} > {}", double(args["contact"]["dhat"]), min_boundary_edge_length);
 			}
 		}
 
@@ -978,11 +925,6 @@ namespace polyfem
 			logger().error("Load the mesh first!");
 			return;
 		}
-		if (n_bases <= 0)
-		{
-			logger().error("Build the bases first!");
-			return;
-		}
 
 		stiffness.resize(0, 0);
 		rhs.resize(0, 0);
@@ -1002,15 +944,31 @@ namespace polyfem
 		{
 			if (mesh->is_volume())
 			{
-				if (args["space"]["poly_basis_type"] == "MeanValue")
-					logger().error("MeanValue bases not supported in 3D");
+				if (args["space"]["poly_basis_type"] == "MeanValue" || args["space"]["poly_basis_type"] == "Wachspress")
+					logger().error("Barycentric bases not supported in 3D");
 				new_bases = basis::PolygonalBasis3d::build_bases(assembler, formulation(), args["space"]["advanced"]["n_harmonic_samples"], *dynamic_cast<Mesh3D *>(mesh.get()), n_bases, args["space"]["advanced"]["quadrature_order"], args["space"]["advanced"]["mass_quadrature_order"], args["space"]["advanced"]["integral_constraints"], bases, bases, poly_edge_to_data, polys_3d);
 			}
 			else
 			{
 				if (args["space"]["poly_basis_type"] == "MeanValue")
 				{
-					new_bases = basis::MVPolygonalBasis2d::build_bases(formulation(), *dynamic_cast<Mesh2D *>(mesh.get()), n_bases, args["space"]["advanced"]["quadrature_order"], args["space"]["advanced"]["mass_quadrature_order"], bases, bases, poly_edge_to_data, local_boundary, polys);
+					new_bases = basis::MVPolygonalBasis2d::build_bases(
+						formulation(),
+						*dynamic_cast<Mesh2D *>(mesh.get()),
+						n_bases,
+						args["space"]["advanced"]["quadrature_order"],
+						args["space"]["advanced"]["mass_quadrature_order"],
+						bases, local_boundary, polys);
+				}
+				else if (args["space"]["poly_basis_type"] == "Wachspress")
+				{
+					new_bases = basis::WSPolygonalBasis2d::build_bases(
+						formulation(),
+						*dynamic_cast<Mesh2D *>(mesh.get()),
+						n_bases,
+						args["space"]["advanced"]["quadrature_order"],
+						args["space"]["advanced"]["mass_quadrature_order"],
+						bases, local_boundary, polys);
 				}
 				else
 					new_bases = basis::PolygonalBasis2d::build_bases(assembler, formulation(), args["space"]["advanced"]["n_harmonic_samples"], *dynamic_cast<Mesh2D *>(mesh.get()), n_bases, args["space"]["advanced"]["quadrature_order"], args["space"]["advanced"]["mass_quadrature_order"], args["space"]["advanced"]["integral_constraints"], bases, bases, poly_edge_to_data, polys);
@@ -1020,9 +978,9 @@ namespace polyfem
 		{
 			if (mesh->is_volume())
 			{
-				if (args["space"]["poly_basis_type"] == "MeanValue")
+				if (args["space"]["poly_basis_type"] == "MeanValue" || args["space"]["poly_basis_type"] == "Wachspress")
 				{
-					logger().error("MeanValue bases not supported in 3D");
+					logger().error("Barycentric bases not supported in 3D");
 					throw "not implemented";
 				}
 				new_bases = basis::PolygonalBasis3d::build_bases(assembler, formulation(), args["space"]["advanced"]["n_harmonic_samples"], *dynamic_cast<Mesh3D *>(mesh.get()), n_bases, args["space"]["advanced"]["quadrature_order"], args["space"]["advanced"]["mass_quadrature_order"], args["space"]["advanced"]["integral_constraints"], bases, geom_bases_, poly_edge_to_data, polys_3d);
@@ -1030,7 +988,23 @@ namespace polyfem
 			else
 			{
 				if (args["space"]["poly_basis_type"] == "MeanValue")
-					new_bases = basis::MVPolygonalBasis2d::build_bases(formulation(), *dynamic_cast<Mesh2D *>(mesh.get()), n_bases, args["space"]["advanced"]["quadrature_order"], args["space"]["advanced"]["mass_quadrature_order"], bases, geom_bases_, poly_edge_to_data, local_boundary, polys);
+				{
+					new_bases = basis::MVPolygonalBasis2d::build_bases(
+						formulation(),
+						*dynamic_cast<Mesh2D *>(mesh.get()),
+						n_bases, args["space"]["advanced"]["quadrature_order"],
+						args["space"]["advanced"]["mass_quadrature_order"],
+						bases, local_boundary, polys);
+				}
+				else if (args["space"]["poly_basis_type"] == "Wachspress")
+				{
+					new_bases = basis::WSPolygonalBasis2d::build_bases(
+						formulation(),
+						*dynamic_cast<Mesh2D *>(mesh.get()),
+						n_bases, args["space"]["advanced"]["quadrature_order"],
+						args["space"]["advanced"]["mass_quadrature_order"],
+						bases, local_boundary, polys);
+				}
 				else
 					new_bases = basis::PolygonalBasis2d::build_bases(assembler, formulation(), args["space"]["advanced"]["n_harmonic_samples"], *dynamic_cast<Mesh2D *>(mesh.get()), n_bases, args["space"]["advanced"]["quadrature_order"], args["space"]["advanced"]["mass_quadrature_order"], args["space"]["advanced"]["integral_constraints"], bases, geom_bases_, poly_edge_to_data, polys);
 			}
@@ -1045,19 +1019,26 @@ namespace polyfem
 
 	void State::build_collision_mesh()
 	{
+		Eigen::MatrixXd node_positions;
 		Eigen::MatrixXi boundary_edges, boundary_triangles;
-		Eigen::SparseMatrix<double> displacement_map;
+		std::vector<Eigen::Triplet<double>> displacement_map_entries;
 		io::OutGeometryData::extract_boundary_mesh(*mesh, n_bases, bases, total_local_boundary,
-												   boundary_nodes_pos, boundary_edges, boundary_triangles, displacement_map);
+												   node_positions, boundary_edges, boundary_triangles, displacement_map_entries);
 
 		Eigen::VectorXi codimensional_nodes;
 		if (obstacle.n_vertices() > 0)
 		{
-			// boundary_nodes_pos uses n_bases that already contains the obstacle
+			// n_bases already contains the obstacle vertices
 			const int n_v = n_bases - obstacle.n_vertices();
 
 			if (obstacle.v().size())
-				boundary_nodes_pos.block(n_v, 0, obstacle.v().rows(), obstacle.v().cols()) = obstacle.v();
+				node_positions.block(n_v, 0, obstacle.v().rows(), obstacle.v().cols()) = obstacle.v();
+
+			if (!displacement_map_entries.empty())
+			{
+				for (int k = n_v; k < n_bases; ++k)
+					displacement_map_entries.emplace_back(k, k, 1);
+			}
 
 			if (obstacle.codim_v().size())
 			{
@@ -1078,14 +1059,21 @@ namespace polyfem
 			}
 		}
 
-		std::vector<bool> is_on_surface = ipc::CollisionMesh::construct_is_on_surface(boundary_nodes_pos.rows(), boundary_edges);
+		std::vector<bool> is_on_surface = ipc::CollisionMesh::construct_is_on_surface(node_positions.rows(), boundary_edges);
 		for (int i = 0; i < codimensional_nodes.size(); i++)
 		{
 			is_on_surface[codimensional_nodes[i]] = true;
 		}
 
+		Eigen::SparseMatrix<double> displacement_map;
+		if (!displacement_map_entries.empty())
+		{
+			displacement_map.resize(node_positions.rows(), n_bases);
+			displacement_map.setFromTriplets(displacement_map_entries.begin(), displacement_map_entries.end());
+		}
+
 		collision_mesh = ipc::CollisionMesh(is_on_surface,
-											boundary_nodes_pos,
+											node_positions,
 											boundary_edges,
 											boundary_triangles,
 											displacement_map);
@@ -1347,7 +1335,7 @@ namespace polyfem
 			// Pre log the output path for easier watching
 			if (args["output"]["advanced"]["save_time_sequence"])
 			{
-				logger().info("Time sequence of simulation will be written to: {}",
+				logger().info("Time sequence of simulation will be written to: \"{}\"",
 							  resolve_output_path(args["output"]["paraview"]["file_name"]));
 			}
 
