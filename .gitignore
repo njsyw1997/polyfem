@@ -63,7 +63,7 @@ build*
 xcode*
 3rdparty*
 /data
-
+output_all*
 
 .DS_STORE
 
