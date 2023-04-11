@@ -151,6 +151,40 @@ namespace polyfem
 		logger().info(" took {}s", timer.getElapsedTime());
 	}
 
+	void State::build_mesh_vertices(Eigen::MatrixXd &V)
+	{
+		assert(bases.size() == mesh->n_elements());
+		const int dim = mesh->dimension();
+		const size_t n_vertices = n_bases - obstacle.n_vertices();		
+		std::vector<int> order_nodes;
+		for (int i=0;i<boundary_nodes.size();i=i+dim)
+		{
+			order_nodes.push_back(boundary_nodes[i]/dim);
+		}
+		Eigen::MatrixXd V_tmp;
+		V_tmp.resize(n_vertices, dim);
+		for (int i = 0; i < bases.size(); i++)
+		{
+			const basis::ElementBases &element = bases[i];
+			for (int j = 0; j < element.bases.size(); j++)
+			{
+				const basis::Basis &basis = element.bases[j];
+				assert(basis.global().size() == 1);
+				V_tmp.row(basis.global()[0].index) = basis.global()[0].node;
+
+			}
+		}
+		V.resize(n_vertices-boundary_nodes.size()/dim, dim);
+		int k=0;
+		for (size_t i = 0; i < n_vertices; i++)
+		{
+			if(!std::binary_search(order_nodes.begin(), order_nodes.end(),i)){
+				V.row(k)=V_tmp.row(i);
+				k++;
+			}
+		}		
+	}
+
 	void State::build_mesh_matrices(Eigen::MatrixXd &V, Eigen::MatrixXi &F)
 	{
 		assert(bases.size() == mesh->n_elements());

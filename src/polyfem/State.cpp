@@ -1246,7 +1246,7 @@ namespace polyfem
 			*assembler, *mesh, obstacle,
 			dirichlet_nodes, neumann_nodes,
 			dirichlet_nodes_position, neumann_nodes_position,
-			n_bases, size, bases, geom_bases(), ass_vals_cache, formulation(), *problem,
+			n_bases, size, bases, geom_bases(), ass_vals_cache, *problem,
 			args["space"]["advanced"]["bc_method"], rhs_solver_params["solver"], rhs_solver_params["precond"], rhs_solver_params);
 	}
 
@@ -1351,6 +1351,16 @@ namespace polyfem
 		igl::Timer timer;
 		timer.start();
 		logger().info("Solving {}", assembler->name());
+
+		if(assembler->is_linear())
+		{
+			Eigen::MatrixXi tempF;
+			build_mesh_matrices(test_vertices,tempF);
+		}
+		else{
+			build_mesh_vertices(test_vertices);
+		}
+		
 
 		init_solve(sol, pressure);
 
