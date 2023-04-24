@@ -151,7 +151,7 @@ namespace polyfem
 		logger().info(" took {}s", timer.getElapsedTime());
 	}
 
-	void State::build_mesh_vertices(Eigen::MatrixXd &V)
+	void State::init_mesh_vertices(Eigen::MatrixXd &V)
 	{
 		assert(bases.size() == mesh->n_elements());
 		const int dim = mesh->dimension();
@@ -161,6 +161,7 @@ namespace polyfem
 		{
 			order_nodes.push_back(boundary_nodes[i]/dim);
 		}
+		std::sort(order_nodes.begin(), order_nodes.end());
 		Eigen::MatrixXd V_tmp;
 		V_tmp.resize(n_vertices, dim);
 		for (int i = 0; i < bases.size(); i++)

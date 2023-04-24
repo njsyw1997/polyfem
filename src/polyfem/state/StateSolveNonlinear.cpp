@@ -26,6 +26,8 @@
 
 #include <ipc/ipc.hpp>
 
+#include <polyfem/io/Evaluator.hpp>
+
 namespace polyfem
 {
 	using namespace mesh;
@@ -67,6 +69,34 @@ namespace polyfem
 		for (int t = 1; t <= time_steps; ++t)
 		{
 			solve_tensor_nonlinear(sol, t);
+			/// Update vertices positions for nullspace vectors.
+			if (true)
+			// {
+			// 	utils::RefElementSampler ref_element_sampler;	//Null, not used	
+			// 	Eigen::MatrixXd fun;
+			// 	Evaluator::interpolate_function(
+			// 	*mesh, mesh->dimension(), bases, disc_orders,
+			// 	polys, polys_3d, ref_element_sampler,
+			// 	test_vertices.rows(), sol, fun, /*use_sampler*/ false, false);
+			// 	std::cout << "fun.rows: " << fun.rows() << std::endl;
+			// 	std::cout << "fun.cols: " << fun.cols() << std::endl;
+			// 	test_vertices=test_vertices+fun;
+			// }
+			{
+				Eigen::MatrixXd sol_reshaped(test_vertices.rows(),test_vertices.cols());
+				Eigen::MatrixXd ori_vertices;
+				Eigen::MatrixXi ori_faces;
+				build_mesh_matrices(ori_vertices,ori_faces);
+				int count=0;
+				for (size_t i = 0; i < test_vertices.rows(); i++)
+					for (size_t j = 0; j < test_vertices.cols(); j++)
+					{
+						sol_reshaped(i,j)=sol(count);
+						count++;
+					}
+				test_vertices=ori_vertices+sol_reshaped;
+			}
+			/////////////
 
 			{
 				POLYFEM_SCOPED_TIMER("Update quantities");
