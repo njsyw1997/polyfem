@@ -69,7 +69,7 @@ namespace polyfem
 		{
 			solve_tensor_nonlinear(sol, t);
 			/// Update vertices positions for nullspace vectors.
-			if (true)
+			if (false)
 			// {
 			// 	utils::RefElementSampler ref_element_sampler;	//Null, not used	
 			// 	Eigen::MatrixXd fun;

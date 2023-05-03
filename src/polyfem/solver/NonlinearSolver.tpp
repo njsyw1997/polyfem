@@ -187,69 +187,25 @@ namespace cppoptlib
 				else
 					break;
 			}
-		// Eliminate the update if the rigid body components from rate*x
 
-		// if (true)
-		// 	{
-		// 		Eigen::VectorXd sol_diff=nl_problem.reduced_to_full(tmp_sol)-nl_problem.reduced_to_full(sol);
-		// 		Eigen::VectorXd tmp_diff=sol_diff;
-		// 		Eigen::MatrixXd mat_diff(test_vertices.rows(),test_vertices.cols());
-		// 		for (size_t i = 0; i < test_vertices.rows(); i++)
-		// 			for (size_t j = 0; j < test_vertices.cols(); j++)
-		// 			{
-		// 				mat_diff(i,j)=sol_diff(i*test_vertices.cols()+j);
-		// 			}
-		// 		sol_diff.setZero();
-		// 		if (test_vertices.cols()==2)
-		// 		{
-		// 			// 2D, only 1 rotation
-		// 			Eigen::VectorXd translate(2);
-		// 		 	double rotate;
-		// 			translate(0)=mat_diff.col(0).mean();
-		// 			translate(1)=mat_diff.col(1).mean();
-		// 			Eigen::VectorXd length=Eigen::sqrt(mat_diff.col(0).array()*mat_diff.col(0).array()+mat_diff.col(1).array()*mat_diff.col(1).array());
-		// 			Eigen::VectorXd point_rotate=mat_diff.col(0).array()/length.array();
-		// 			rotate=Eigen::acos(point_rotate.array()).mean();					
-		// 			for (size_t i = 0; i < test_vertices.rows(); i++)
-		// 			{
-		// 				sol_diff(i*test_vertices.cols())=translate(0)+std::cos(rotate)*length(i);
-		// 				sol_diff(i*test_vertices.cols()+1)=translate(1)+std::sin(rotate)*length(i);
-		// 			}					
-		// 		}
-		// 		else
-		// 		{
-		// 			// 3D, 3 rotation
-		// 			Eigen::VectorXd translate(3);
-		// 			Eigen::VectorXd rotate(3);
-		// 			translate(0)=mat_diff.col(0).mean();
-		// 			translate(1)=mat_diff.col(1).mean();
-		// 			translate(2)=mat_diff.col(2).mean();
-		// 			Eigen::VectorXd length=Eigen::sqrt(mat_diff.col(0).array()*mat_diff.col(0).array()+mat_diff.col(1).array()*mat_diff.col(1).array()+mat_diff.col(2).array()*mat_diff.col(2).array());
-		// 			Eigen::VectorXd point_rotate=mat_diff.col(0).array()/length.array();
-		// 			rotate(0)=Eigen::acos(point_rotate.col(0).array()).mean();
-		// 			point_rotate=mat_diff.col(1).array()/length.array();
-		// 			rotate(1)=Eigen::acos(point_rotate.col(1).array()).mean();
-		// 			point_rotate=mat_diff.col(2).array()/length.array();
-		// 			rotate(2)=Eigen::acos(point_rotate.col(2).array()).mean();
-		// 			for (size_t i = 0; i < test_vertices.rows(); i++)
-		// 			{
-		// 				sol_diff(i*test_vertices.cols())=translate(0)+std::cos(rotate(0))*length(i);
-		// 				sol_diff(i*test_vertices.cols()+1)=translate(1)+std::cos(rotate(1))*length(i);
-		// 				sol_diff(i*test_vertices.cols()+2)=translate(2)+std::cos(rotate(2))*length(i);
-		// 			}	
-		// 		}
-		// 		if (tmp_diff.norm()<=sol_diff.norm())
-		// 		{
-		// 			std::cout<<"Bad modification"<<std::endl;
-		// 			exit(0);
-		// 		}
-				
-		// 		double alpha=0.5; // Relaxation factor
-		// 		tmp_sol=nl_problem.full_to_reduced(tmp_sol)-nl_problem.full_to_reduced(alpha*sol_diff);				
-		// 	}
-
+			// Eliminate the update if the rigid body components from rate*x
+		// x, reduced matrix
 
 			x += rate * delta_x;
+			if (true)
+			{
+				Eigen::MatrixXd sol_reshaped(test_vertices.rows(),test_vertices.cols());
+				int count=0;
+				for (size_t i = 0; i < test_vertices.rows(); i++)
+					for (size_t j = 0; j < test_vertices.cols(); j++)
+					{
+						sol_reshaped(i,j)=x(count);
+						count++;
+					}
+				test_vertices=init_vertices+sol_reshaped;
+			}					
+
+
 
 			// -----------
 			// Post update
