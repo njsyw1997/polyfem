@@ -83,9 +83,6 @@ namespace polyfem
 			// }
 			{
 				Eigen::MatrixXd sol_reshaped(test_vertices.rows(),test_vertices.cols());
-				Eigen::MatrixXd ori_vertices;
-				Eigen::MatrixXi ori_faces;
-				build_mesh_matrices(ori_vertices,ori_faces);
 				int count=0;
 				for (size_t i = 0; i < test_vertices.rows(); i++)
 					for (size_t j = 0; j < test_vertices.cols(); j++)
@@ -93,7 +90,7 @@ namespace polyfem
 						sol_reshaped(i,j)=sol(count);
 						count++;
 					}
-				test_vertices=ori_vertices+sol_reshaped;
+				test_vertices=init_vertices+sol_reshaped;
 			}
 			/////////////
 
