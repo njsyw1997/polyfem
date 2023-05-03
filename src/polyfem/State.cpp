@@ -1371,13 +1371,14 @@ namespace polyfem
 		if(assembler->is_linear())
 		{
 			Eigen::MatrixXi tempF;
-			build_mesh_matrices(test_vertices,tempF);
-
+			build_mesh_matrices(init_vertices,tempF);
+			test_vertices=init_vertices;
 			test_boundary_nodes.clear();
 		}
 		else{
 			Eigen::MatrixXi tempV,tempF;
-			build_mesh_matrices(test_vertices,tempF);
+			build_mesh_matrices(init_vertices,tempF);
+			test_vertices=init_vertices;
 			int dim = mesh->dimension();
 			std::vector<int> order_nodes;
 			for (int i=0;i<boundary_nodes.size();i=i+dim)

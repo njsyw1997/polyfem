@@ -146,7 +146,25 @@ namespace cppoptlib
 			return false;
 		}
 
-		linear_solver->solve(-grad, direction); // H Δx = -g
+		try
+		{
+			linear_solver->solve(-grad, direction); // H Δx = -g
+		}
+		catch(const std::runtime_error &err)
+		{
+			increase_descent_strategy();
+
+			// warn if using gradient descent
+			polyfem::logger().log(
+				log_level(), "Unable to factorize Hessian: \"{}\"; reverting to {}",
+				err.what(), this->descent_strategy_name());
+
+			// polyfem::write_sparse_matrix_csv("problematic_hessian.csv", hessian);
+			return false;
+		}
+		
+
+		
 
 		return true;
 	}
