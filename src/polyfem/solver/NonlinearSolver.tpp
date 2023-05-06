@@ -189,17 +189,18 @@ namespace cppoptlib
 			}
 
 			// Eliminate the update if the rigid body components from rate*x
-		// x, reduced matrix
 
 			x += rate * delta_x;
 			if (true)
 			{
 				Eigen::MatrixXd sol_reshaped(test_vertices.rows(),test_vertices.cols());
+				Eigen::MatrixXd full_x=objFunc.reduced_to_full(x);
 				int count=0;
+				
 				for (size_t i = 0; i < test_vertices.rows(); i++)
 					for (size_t j = 0; j < test_vertices.cols(); j++)
 					{
-						sol_reshaped(i,j)=x(count);
+						sol_reshaped(i,j)=full_x(count);
 						count++;
 					}
 				test_vertices=init_vertices+sol_reshaped;
