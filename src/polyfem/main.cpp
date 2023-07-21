@@ -8,6 +8,7 @@
 #include <polyfem/State.hpp>
 #include <polyfem/utils/JSONUtils.hpp>
 #include <polyfem/utils/Logger.hpp>
+#include <polyfem/utils/Timer.hpp>
 
 #include <polysolve/LinearSolver.hpp>
 
@@ -154,7 +155,9 @@ int main(int argc, char **argv)
 	state.compute_errors(sol);
 
 	logger().info("total time: {}s", state.timings.total_time());
-
+	logger().info("bc time: {}s", bc_time);
+	logger().info("bc solver time: {}s", bc_solver_time);
+	logger().info("linear time: {}s", linear_time);
 	state.save_json(sol);
 	state.export_data(sol, pressure);
 

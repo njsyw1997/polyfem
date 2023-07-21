@@ -96,7 +96,7 @@ namespace polyfem
 				test_vertices=ori_vertices+sol_reshaped;
 			}
 			/////////////
-
+			// Timer assemble_timer("Assemble Rhs Time:");
 			{
 				POLYFEM_SCOPED_TIMER("Update quantities");
 
@@ -106,6 +106,8 @@ namespace polyfem
 
 				solve_data.update_dt();
 				solve_data.update_barrier_stiffness(sol);
+				// logger().info(fmt::format("[{}] {{}} {{:.3g}}s", fmt::format(fmt::fg(fmt::terminal_color::magenta), "timing")),
+				// "Update quantities time:",__polyfem_timer.getElapsedTimeInSec());
 			}
 
 			save_timestep(t0 + dt * t, t, t0, dt, sol, Eigen::MatrixXd()); // no pressure

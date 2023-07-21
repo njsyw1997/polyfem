@@ -98,7 +98,9 @@ namespace polyfem::solver
 		update_barrier_stiffness(sol);
 		try
 		{
+
 			nl_solver->minimize(nl_problem, tmp_sol);
+
 		}
 		catch (const std::runtime_error &e)
 		{

@@ -46,6 +46,7 @@
 #include <filesystem>
 
 #include <polyfem/utils/autodiff.h>
+#include <unsupported/Eigen/SparseExtra>
 DECLARE_DIFFSCALAR_BASE();
 
 using namespace Eigen;
@@ -1374,6 +1375,8 @@ namespace polyfem
 			build_mesh_matrices(init_vertices,tempF);
 			test_vertices=init_vertices;
 			test_boundary_nodes.clear();
+			// std::string save_path=args["output"]["data"]["full_mat"];
+			// Eigen::saveMarketVector(test_vertices,save_path+"/vec.mtx");
 		}
 		else{
 			Eigen::MatrixXi tempV,tempF;

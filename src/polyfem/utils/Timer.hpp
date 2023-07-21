@@ -8,7 +8,9 @@
 #include <igl/Timer.h>
 
 #define POLYFEM_SCOPED_TIMER(...) polyfem::utils::Timer __polyfem_timer(__VA_ARGS__)
-
+inline double bc_time;
+inline double bc_solver_time;
+inline double linear_time;
 namespace polyfem
 {
 	namespace utils

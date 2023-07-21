@@ -54,10 +54,10 @@ namespace polyfem
 		logger().info("sparsity: {}/{}", stats.nn_zero, stats.mat_size);
 
 		const std::string full_mat_path = args["output"]["data"]["full_mat"];
-		if (!full_mat_path.empty())
-		{
-			Eigen::saveMarket(stiffness, full_mat_path);
-		}
+		// if (!full_mat_path.empty())
+		// {
+		// 	Eigen::saveMarket(stiffness, full_mat_path);
+		// }
 	}
 
 	void State::solve_linear(
@@ -72,7 +72,12 @@ namespace polyfem
 
 		const int problem_dim = problem->is_scalar() ? 1 : mesh->dimension();
 		const int precond_num = problem_dim * n_bases;
-
+		const std::string full_mat_path = args["output"]["data"]["full_mat"];
+		if (!full_mat_path.empty())
+		{
+			// Eigen::saveMarket(A, full_mat_path+"/stiffness.mtx");
+			Eigen::saveMarketVector(b, full_mat_path+"/rhs.mtx");
+		}
 		Eigen::VectorXd x;
 		stats.spectrum = dirichlet_solve(
 			*solver, A, b, boundary_nodes, x, precond_num, args["output"]["data"]["stiffness_mat"], compute_spectrum,

@@ -6,7 +6,7 @@
 #include <polyfem/utils/MaybeParallelFor.hpp>
 
 #include <polysolve/LinearSolver.hpp>
-
+#include <polyfem/utils/Timer.hpp>
 namespace polyfem
 {
 	using namespace polysolve;
@@ -394,12 +394,15 @@ namespace polyfem
 
 						Eigen::VectorXd coeffs(b.rows(), 1);
 						auto solver = LinearSolver::create(solver_, preconditioner_);
+						Timer tt("bc linear");
 						solver->setParameters(solver_params_);
 						solver->analyzePattern(A, A.rows());
 						solver->factorize(A);
 						coeffs.setZero();
 						solver->solve(b, coeffs);
-
+						// logger().info(fmt::format("[{}] {{}} {{:.3g}}s", fmt::format(fmt::fg(fmt::terminal_color::magenta), "timing")),
+						// 	"bc linear time:",tt.getElapsedTimeInSec());
+						bc_solver_time += tt.getElapsedTimeInSec();
 						logger().trace("RHS solve error {}", (A * coeffs - b).norm());
 
 						for (long i = 0; i < coeffs.rows(); ++i)
@@ -696,6 +699,7 @@ namespace polyfem
 
 		void RhsAssembler::set_bc(const std::vector<LocalBoundary> &local_boundary, const std::vector<int> &bounday_nodes, const int resolution, const std::vector<LocalBoundary> &local_neumann_boundary, Eigen::MatrixXd &rhs, const Eigen::MatrixXd &displacement, const double t) const
 		{
+			Timer ttt("bc");
 			set_bc(
 				[&](const Eigen::MatrixXi &global_ids, const Eigen::MatrixXd &uv, const Eigen::MatrixXd &pts, Eigen::MatrixXd &val) {
 					problem_.dirichlet_bc(mesh_, global_ids, uv, pts, t, val);
@@ -706,6 +710,10 @@ namespace polyfem
 				local_boundary, bounday_nodes, resolution, local_neumann_boundary, displacement, t, rhs);
 
 			obstacle_.update_displacement(t, rhs);
+			bc_time += ttt.getElapsedTimeInSec();
+			// logger().info(fmt::format("[{}] {{}} {{:.3g}}s", fmt::format(fmt::fg(fmt::terminal_color::magenta), "timing")),
+			// 	"Update bc time:",ttt.getElapsedTimeInSec());
+
 		}
 
 		void RhsAssembler::compute_energy_grad(const std::vector<LocalBoundary> &local_boundary, const std::vector<int> &bounday_nodes, const Density &density, const int resolution, const std::vector<LocalBoundary> &local_neumann_boundary, const Eigen::MatrixXd &final_rhs, const double t, Eigen::MatrixXd &rhs) const

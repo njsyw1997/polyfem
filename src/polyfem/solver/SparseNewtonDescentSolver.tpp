@@ -148,6 +148,7 @@ namespace cppoptlib
 
 		try
 		{
+			
 			linear_solver->solve(-grad, direction); // H Δx = -g
 		}
 		catch(const std::runtime_error &err)
