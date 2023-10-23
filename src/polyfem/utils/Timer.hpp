@@ -15,17 +15,30 @@ namespace polyfem
 {
 	namespace utils
 	{
+		struct Timing
+		{
+			operator double() const { return time; }
+
+			void operator+=(const double t)
+			{
+				time += t;
+				++count;
+			}
+
+			double time = 0;
+			size_t count = 0;
+		};
+
 		class Timer
 		{
 		public:
 			Timer()
-				: m_total_time(nullptr)
 			{
 				start();
 			}
 
 			Timer(const std::string &name)
-				: m_name(name), m_total_time(nullptr)
+				: m_name(name)
 			{
 				start();
 			}
@@ -36,8 +49,20 @@ namespace polyfem
 				start();
 			}
 
+			Timer(Timing &timing)
+				: m_total_time(&timing.time), m_count(&timing.count)
+			{
+				start();
+			}
+
 			Timer(const std::string &name, double &total_time)
 				: m_name(name), m_total_time(&total_time)
+			{
+				start();
+			}
+
+			Timer(const std::string &name, Timing &timing)
+				: m_name(name), m_total_time(&timing.time), m_count(&timing.count)
 			{
 				start();
 			}
@@ -61,9 +86,9 @@ namespace polyfem
 				is_running = false;
 				log_msg();
 				if (m_total_time)
-				{
 					*m_total_time += getElapsedTimeInSec();
-				}
+				if (m_count)
+					++(*m_count);
 			}
 
 			inline double getElapsedTimeInSec()
@@ -90,7 +115,8 @@ namespace polyfem
 		protected:
 			std::string m_name;
 			igl::Timer m_timer;
-			double *m_total_time;
+			double *m_total_time = nullptr;
+			size_t *m_count = nullptr;
 			bool is_running = false;
 		};
 	} // namespace utils

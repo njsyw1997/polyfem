@@ -26,6 +26,12 @@
 #include <spdlog/sinks/ostream_sink.h>
 
 #include <ipc/utils/logger.hpp>
+#ifdef POLYFEM_WITH_REMESHING
+#include <wmtk/utils/Logger.hpp>
+#endif
+
+#include <polyfem/mesh/mesh2D/Mesh2D.hpp>
+#include <polyfem/mesh/mesh3D/Mesh3D.hpp>
 
 #include <sstream>
 
@@ -119,15 +125,27 @@ namespace polyfem
 		problem = ProblemFactory::factory().get_problem("Linear");
 	}
 
-	void State::init_logger(const std::string &log_file, const spdlog::level::level_enum log_level, const bool is_quiet)
+	void State::init_logger(
+		const std::string &log_file,
+		const spdlog::level::level_enum log_level,
+		const spdlog::level::level_enum file_log_level,
+		const bool is_quiet)
 	{
 		std::vector<spdlog::sink_ptr> sinks;
 
 		if (!is_quiet)
-			sinks.emplace_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
+		{
+			console_sink_ = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+			sinks.emplace_back(console_sink_);
+		}
 
 		if (!log_file.empty())
-			sinks.emplace_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file, /*truncate=*/true));
+		{
+			file_sink_ = std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file, /*truncate=*/true);
+			// Set the file sink separately from the console so it can save all messages
+			file_sink_->set_level(file_log_level);
+			sinks.push_back(file_sink_);
+		}
 
 		init_logger(sinks, log_level);
 		spdlog::flush_every(std::chrono::seconds(3));
@@ -142,10 +160,7 @@ namespace polyfem
 
 	void State::init_logger(const std::vector<spdlog::sink_ptr> &sinks, const spdlog::level::level_enum log_level)
 	{
-		spdlog::set_level(log_level);
-
 		set_logger(std::make_shared<spdlog::logger>("polyfem", sinks.begin(), sinks.end()));
-		logger().set_level(log_level);
 
 		GEO::Logger *geo_logger = GEO::Logger::instance();
 		geo_logger->unregister_all_clients();
@@ -153,7 +168,27 @@ namespace polyfem
 		geo_logger->set_pretty(false);
 
 		ipc::set_logger(std::make_shared<spdlog::logger>("ipctk", sinks.begin(), sinks.end()));
-		ipc::logger().set_level(log_level);
+
+#ifdef POLYFEM_WITH_REMESHING
+		wmtk::set_logger(std::make_shared<spdlog::logger>("wmtk", sinks.begin(), sinks.end()));
+#endif
+
+		// Set the logger at the lowest level, so all messages are passed to the sinks
+		logger().set_level(spdlog::level::trace);
+		ipc::logger().set_level(spdlog::level::trace);
+#ifdef POLYFEM_WITH_REMESHING
+		wmtk::logger().set_level(spdlog::level::trace);
+#endif
+
+		set_log_level(log_level);
+	}
+
+	void State::set_log_level(const spdlog::level::level_enum log_level)
+	{
+		// Set only the level of the console
+		spdlog::set_level(log_level);
+		if (console_sink_)
+			console_sink_->set_level(log_level); // Shared by all loggers
 	}
 
 	void State::init(const json &p_args_in, const bool strict_validation)
@@ -192,6 +227,65 @@ namespace polyfem
 				rules[i]["default"] = polysolve::LinearSolver::defaultPrecond();
 				rules[i]["options"] = polysolve::LinearSolver::availablePrecond();
 			}
+			else if (rules[i]["pointer"] == "/solver/linear/adjoint_solver")
+			{
+				const auto ss = polysolve::LinearSolver::availableSolvers();
+				const bool solver_found = args_in.contains("solver") && args_in["solver"].contains("linear") && args_in["solver"]["linear"].contains("solver") && (std::find(ss.begin(), ss.end(), args_in["solver"]["linear"]["solver"]) != ss.end());
+				rules[i]["default"] = solver_found ? args_in["solver"]["linear"]["solver"].get<std::string>() : polysolve::LinearSolver::defaultSolver();
+				rules[i]["options"] = polysolve::LinearSolver::availableSolvers();
+			}
+		}
+
+		const auto lin_solver_ptr = "/solver/linear/solver"_json_pointer;
+		if (args_in.contains(lin_solver_ptr) && args_in[lin_solver_ptr].is_array())
+		{
+			const std::vector<std::string> solvers = args_in[lin_solver_ptr];
+			const std::vector<std::string> available_solvers = polysolve::LinearSolver::availableSolvers();
+			std::string accepted_solver = "";
+			for (const std::string &solver : solvers)
+			{
+				if (std::find(available_solvers.begin(), available_solvers.end(), solver) != available_solvers.end())
+				{
+					accepted_solver = solver;
+					break;
+				}
+			}
+			if (!accepted_solver.empty())
+				logger().info("Solver {} is the highest priority availble solver; using it.", accepted_solver);
+			else
+				logger().warn("No valid solver found in the list of specified solvers!");
+			args_in[lin_solver_ptr] = accepted_solver;
+		}
+
+		// Fallback to default linear solver if the specified solver is invalid
+		// NOTE: I do not know why .value() causes a segfault only on Windows
+		// const bool fallback_solver = args_in.value("/solver/linear/enable_overwrite_solver"_json_pointer, false);
+		const bool fallback_solver =
+			args_in.contains("/solver/linear/enable_overwrite_solver"_json_pointer)
+				? args_in.at("/solver/linear/enable_overwrite_solver"_json_pointer).get<bool>()
+				: false;
+		if (fallback_solver)
+		{
+			const std::vector<std::string> ss = polysolve::LinearSolver::availableSolvers();
+			std::string s_json = "null";
+			if (!args_in.contains(lin_solver_ptr) || !args_in[lin_solver_ptr].is_string()
+				|| std::find(ss.begin(), ss.end(), s_json = args_in[lin_solver_ptr].get<std::string>()) == ss.end())
+			{
+				logger().warn("Solver {} is invalid, falling back to {}", s_json, polysolve::LinearSolver::defaultSolver());
+				args_in[lin_solver_ptr] = polysolve::LinearSolver::defaultSolver();
+			}
+		}
+
+		if (fallback_solver)
+		{
+			const std::string s_json = this->args["solver"]["linear"]["adjoint_solver"];
+			const auto ss = polysolve::LinearSolver::availableSolvers();
+			const auto solver_found = std::find(ss.begin(), ss.end(), s_json);
+			if (solver_found == ss.end())
+			{
+				logger().warn("Adjoint solver {} is invalid, falling back to {}", s_json, this->args["solver"]["linear"]["solver"]);
+				this->args["solver"]["linear"]["adjoint_solver"] = this->args["solver"]["linear"]["solver"];
+			}
 		}
 
 		const bool valid_input = jse.verify_json(args_in, rules);
@@ -204,20 +298,7 @@ namespace polyfem
 		// end of check
 
 		this->args = jse.inject_defaults(args_in, rules);
-
-		const bool fallback_solver = this->args["solver"]["linear"]["enable_overwrite_solver"];
-		// Fallback to default linear solver if the specified solver is invalid
-		if (fallback_solver)
-		{
-			const std::string s_json = this->args["solver"]["linear"]["solver"];
-			const auto ss = polysolve::LinearSolver::availableSolvers();
-			const auto solver_found = std::find(ss.begin(), ss.end(), s_json);
-			if (solver_found == ss.end())
-			{
-				logger().warn("Solver {} is invalid, falling back to {}", s_json, polysolve::LinearSolver::defaultSolver());
-				this->args["solver"]["linear"]["solver"] = polysolve::LinearSolver::defaultSolver();
-			}
-		}
+		units.init(this->args["units"]);
 
 		// Save output directory and resolve output paths dynamically
 		const std::string output_dir = resolve_input_path(this->args["output"]["directory"]);
@@ -233,8 +314,11 @@ namespace polyfem
 			out_path_log = resolve_output_path(out_path_log);
 		}
 
-		spdlog::level::level_enum log_level = this->args["output"]["log"]["level"];
-		init_logger(out_path_log, log_level, this->args["output"]["log"]["quiet"]);
+		init_logger(
+			out_path_log,
+			this->args["output"]["log"]["level"],
+			this->args["output"]["log"]["file_level"],
+			this->args["output"]["log"]["quiet"]);
 
 		logger().info("Saving output to {}", output_dir);
 
@@ -317,6 +401,31 @@ namespace polyfem
 			// important for the BC
 			problem->set_parameters(args["preset_problem"]);
 		}
+
+		problem->set_units(*assembler, units);
+
+		if (optimization_enabled)
+		{
+			if (is_contact_enabled())
+			{
+				if (!args["contact"]["use_convergent_formulation"])
+				{
+					args["contact"]["use_convergent_formulation"] = true;
+					logger().info("Use convergent formulation for differentiable contact...");
+				}
+				if (args["/solver/contact/barrier_stiffness"_json_pointer].is_string())
+				{
+					logger().error("Only constant barrier stiffness is supported in differentiable contact!");
+				}
+			}
+
+			if (args.contains("boundary_conditions") && args["boundary_conditions"].contains("rhs"))
+			{
+				json rhs = args["boundary_conditions"]["rhs"];
+				if ((rhs.is_array() && rhs.size() > 0 && rhs[0].is_string()) || rhs.is_string())
+					logger().error("Only constant rhs over space is supported in differentiable code!");
+			}
+		}
 	}
 
 	void State::set_max_threads(const unsigned int max_threads)
@@ -334,7 +443,7 @@ namespace polyfem
 		if (!is_param_valid(args, "time"))
 			return;
 
-		const double t0 = args["time"]["t0"];
+		const double t0 = Units::convert(args["time"]["t0"], units.time());
 		double tend, dt;
 		int time_steps;
 
@@ -350,11 +459,11 @@ namespace polyfem
 		{
 			if (is_param_valid(args["time"], "tend"))
 			{
-				tend = args["time"]["tend"];
+				tend = Units::convert(args["time"]["tend"], units.time());
 				assert(tend > t0);
 				if (is_param_valid(args["time"], "dt"))
 				{
-					dt = args["time"]["dt"];
+					dt = Units::convert(args["time"]["dt"], units.time());
 					assert(dt > 0);
 					time_steps = int(ceil((tend - t0) / dt));
 					assert(time_steps > 0);
@@ -376,7 +485,7 @@ namespace polyfem
 				// tend is already confirmed to be invalid, so time_steps must be valid
 				assert(is_param_valid(args["time"], "time_steps"));
 
-				dt = args["time"]["dt"];
+				dt = Units::convert(args["time"]["dt"], units.time());
 				assert(dt > 0);
 
 				time_steps = args["time"]["time_steps"];
@@ -392,8 +501,8 @@ namespace polyfem
 		}
 		else if (num_valid == 3)
 		{
-			tend = args["time"]["tend"];
-			dt = args["time"]["dt"];
+			tend = Units::convert(args["time"]["tend"], units.time());
+			dt = Units::convert(args["time"]["dt"], units.time());
 			time_steps = args["time"]["time_steps"];
 
 			// Check that all parameters agree
@@ -420,12 +529,82 @@ namespace polyfem
 		if (!utils::is_param_valid(args, "materials"))
 			return;
 
+		if (!args["materials"].is_array() && args["materials"]["type"] == "AMIPS")
+		{
+			json transform_params = {};
+			transform_params["canonical_transformation"] = json::array();
+			if (!mesh->is_volume())
+			{
+				Eigen::MatrixXd regular_tri(3, 3);
+				regular_tri << 0, 0, 1,
+					1, 0, 1,
+					1. / 2., std::sqrt(3) / 2., 1;
+				regular_tri.transposeInPlace();
+				Eigen::MatrixXd regular_tri_inv = regular_tri.inverse();
+
+				const auto &mesh2d = *dynamic_cast<mesh::Mesh2D *>(mesh.get());
+				for (int e = 0; e < mesh->n_elements(); e++)
+				{
+					Eigen::MatrixXd transform;
+					mesh2d.compute_face_jacobian(e, regular_tri_inv, transform);
+					transform_params["canonical_transformation"].push_back(json({
+						{
+							transform(0, 0),
+							transform(0, 1),
+						},
+						{
+							transform(1, 0),
+							transform(1, 1),
+						},
+					}));
+				}
+			}
+			else
+			{
+				Eigen::MatrixXd regular_tet(4, 4);
+				regular_tet << 0, 0, 0, 1,
+					1, 0, 0, 1,
+					1. / 2., std::sqrt(3) / 2., 0, 1,
+					1. / 2., 1. / 2. / std::sqrt(3), std::sqrt(3) / 2., 1;
+				regular_tet.transposeInPlace();
+				Eigen::MatrixXd regular_tet_inv = regular_tet.inverse();
+
+				const auto &mesh3d = *dynamic_cast<mesh::Mesh3D *>(mesh.get());
+				for (int e = 0; e < mesh->n_elements(); e++)
+				{
+					Eigen::MatrixXd transform;
+					mesh3d.compute_cell_jacobian(e, regular_tet_inv, transform);
+					transform_params["canonical_transformation"].push_back(json({
+						{
+							transform(0, 0),
+							transform(0, 1),
+							transform(0, 2),
+						},
+						{
+							transform(1, 0),
+							transform(1, 1),
+							transform(1, 2),
+						},
+						{
+							transform(2, 0),
+							transform(2, 1),
+							transform(2, 2),
+						},
+					}));
+				}
+			}
+			transform_params["solve_displacement"] = true;
+			assembler->set_materials({}, transform_params, units);
+
+			return;
+		}
+
 		std::vector<int> body_ids(mesh->n_elements());
 		for (int i = 0; i < mesh->n_elements(); ++i)
 			body_ids[i] = mesh->get_body_id(i);
 
 		for (auto &a : assemblers)
-			a->set_materials(body_ids, args["materials"]);
+			a->set_materials(body_ids, args["materials"], units);
 	}
 
 	void State::set_materials(assembler::Assembler &assembler) const
@@ -440,7 +619,7 @@ namespace polyfem
 		for (int i = 0; i < mesh->n_elements(); ++i)
 			body_ids[i] = mesh->get_body_id(i);
 
-		assembler.set_materials(body_ids, args["materials"]);
+		assembler.set_materials(body_ids, args["materials"], units);
 	}
 
 } // namespace polyfem
