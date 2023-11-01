@@ -484,6 +484,9 @@ namespace polyfem
 		/// Build the mesh matrices (vertices and elements) from the mesh using the bases node ordering
 		void build_mesh_matrices(Eigen::MatrixXd &V, Eigen::MatrixXi &F);
 
+		// For nullspace vector solvers
+		void init_mesh_vertices(Eigen::MatrixXd &V);
+
 #ifdef POLYFEM_WITH_REMESHING
 		/// @brief Remesh the FE space and update solution(s).
 		/// @param time Current time.

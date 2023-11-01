@@ -47,6 +47,8 @@ namespace polyfem::solver
 		std::vector<std::shared_ptr<Form>> &forms() { return forms_; }
 
 		virtual bool stop(const TVector &x) { return false; }
+		virtual TVector full_to_reduced(const TVector &full) const { return full; }
+		virtual TVector reduced_to_full(const TVector &reduced) const { return reduced; }
 
 	protected:
 		std::vector<std::shared_ptr<Form>> forms_;
